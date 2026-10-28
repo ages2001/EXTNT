@@ -853,21 +853,32 @@ CopyName(char *To, const char *From, ULONG Max)
     To[n] = 0;
 }
 
+/* the Windows directory the boot loader recorded (a sector buffer from pool:
+   this runs under a flush, deep on NT 3.x's 12K kernel stacks) */
+static BOOLEAN
+RecordedWinDir(SHIM *S, char *Root)
+{
+    UCHAR *Sec = (UCHAR *)ShAlloc(1024);
+    BOOLEAN Ok = FALSE;
+    if (Sec && ShRead(S, 0, 2, Sec) == 0 && ExtShimPresent(Sec) && Sec[EXT_SHIM_WINDIR] > ' ') {
+        ExtCopy(Root, Sec + EXT_SHIM_WINDIR, 15);
+        Root[15] = 0;
+        Ok = TRUE;
+    }
+    if (Sec) ShFree(Sec);
+    return Ok;
+}
+
 /* The Windows directory: given, recorded by extboot, BOOT.INI's default entry, or found */
 static VOID
 FindWinDir(SHIM *S, const char *Given)
 {
     char *Root = S->R->WinDir;
-    UCHAR Sec[1024];
     ULONG Ino, k;
 
     Root[0] = 0;
     if (Given && *Given) { CopyName(Root, Given, sizeof(S->R->WinDir)); return; }
-    if (ShRead(S, 0, 2, Sec) == 0 && ExtShimPresent(Sec) && Sec[EXT_SHIM_WINDIR] > ' ') {
-        ExtCopy(Root, Sec + EXT_SHIM_WINDIR, 15);
-        Root[15] = 0;
-        return;
-    }
+    if (RecordedWinDir(S, Root)) return;
     Ino = Find(S, EXT_ROOT_INO, "BOOT.INI", FALSE);
     if (Ino) {
         EXT_INODE I;

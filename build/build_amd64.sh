@@ -30,7 +30,7 @@ echo "Linking extnt.sys (native, subsystem 5.02)..."
 $GCC -shared -nostdlib -nostartfiles \
     -Wl,--subsystem,native -Wl,--major-subsystem-version,5 -Wl,--minor-subsystem-version,2 \
     -Wl,--major-os-version,5 -Wl,--minor-os-version,2 \
-    -Wl,--major-image-version,1 -Wl,--minor-image-version,0 \
+    -Wl,--major-image-version,1 -Wl,--minor-image-version,1 \
     -Wl,--image-base,0x10000 -Wl,--entry,DriverEntry -Wl,--file-alignment,0x200 \
     -Wl,--section-alignment,0x1000 \
     -o "$OUT/extnt.sys" "$OUT"/*.o -lntoskrnl -lhal -lgcc

@@ -682,9 +682,37 @@ ExnSpliceLink (
     return STATUS_SUCCESS;
 }
 
+/* the big buffers of a create, off the stack (NT 3.x has 12K kernel stacks
+   and the I/O manager has used a third of it by the time a create gets here) */
+typedef struct _EXN_CREATE_WORK {
+    EXT_ENTRY       Entry;
+    EXN_OPEN_NAME   OpenName;
+    UCHAR           Name[EXN_MAX_NAME + 1];
+} EXN_CREATE_WORK, *PEXN_CREATE_WORK;
+
+static NTSTATUS ExnCommonCreateW(PEXN_IRP_CONTEXT Ctx, PEXN_CREATE_WORK W);
+
 NTSTATUS
 ExnCommonCreate (
     PEXN_IRP_CONTEXT Ctx
+    )
+{
+    PEXN_CREATE_WORK W;
+    NTSTATUS Status;
+
+    W = (PEXN_CREATE_WORK)ExAllocatePoolWithTag(NonPagedPool, sizeof(EXN_CREATE_WORK), EXN_TAG_NAME);
+    if (W == NULL) {
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    Status = ExnCommonCreateW(Ctx, W);
+    ExFreePool(W);
+    return Status;
+}
+
+static NTSTATUS
+ExnCommonCreateW (
+    PEXN_IRP_CONTEXT Ctx,
+    PEXN_CREATE_WORK W
     )
 {
     PEXN_VCB Vcb = Ctx->Vcb;
@@ -712,9 +740,6 @@ ExnCommonCreate (
     BOOLEAN AsLink;
     PWSTR LinkPath = NULL;
     ULONG LinkDepth = 0;
-    EXT_ENTRY Entry;
-    EXN_OPEN_NAME OpenName;
-    UCHAR Name[EXN_MAX_NAME + 1];
     ULONG NameLength;
     NTSTATUS Status = STATUS_SUCCESS;
 
@@ -723,7 +748,7 @@ ExnCommonCreate (
     ShareAccess = IrpSp->Parameters.Create.ShareAccess;
     OpenTarget = (BOOLEAN)((IrpSp->Flags & SL_OPEN_TARGET_DIRECTORY) != 0);
     CaseSensitive = (BOOLEAN)(ExnData.CaseSensitive || (IrpSp->Flags & SL_CASE_SENSITIVE));
-    OpenName.Length = 0;
+    W->OpenName.Length = 0;
 
     Remaining = FileObject->FileName;
 
@@ -866,7 +891,7 @@ ExnCommonCreate (
                 __leave;
             }
 
-            Status = ExnUnicodeToExt(&Component, Name, &NameLength);
+            Status = ExnUnicodeToExt(&Component, W->Name, &NameLength);
             if (!NT_SUCCESS(Status)) {
                 Status = STATUS_OBJECT_NAME_INVALID;
                 __leave;
@@ -888,7 +913,7 @@ ExnCommonCreate (
                 __leave;
             }
 
-            Status = ExnLookupName(Vcb, Current, &Component, CaseSensitive, &Entry);
+            Status = ExnLookupName(Vcb, Current, &Component, CaseSensitive, &W->Entry);
 
             if (Status == STATUS_OBJECT_NAME_NOT_FOUND) {
 
@@ -901,7 +926,7 @@ ExnCommonCreate (
                     __leave;
                 }
 
-                Status = ExnCreateNew(Ctx, Vcb, Current, Name, NameLength, CreateDisposition,
+                Status = ExnCreateNew(Ctx, Vcb, Current, W->Name, NameLength, CreateDisposition,
                                       CreateOptions, ShareAccess, TrailingBackslash, &Created);
 
                 if (NT_SUCCESS(Status)) {
@@ -918,7 +943,7 @@ ExnCommonCreate (
 
             /* A symbolic link: follow it, unless the caller wants the link */
             AsLink = FALSE;
-            if (ExnEntryIsLink(Vcb, &Entry)) {
+            if (ExnEntryIsLink(Vcb, &W->Entry)) {
                 if (LastComponent &&
                     ((CreateOptions & FILE_OPEN_REPARSE_POINT) ||
                      (IrpSp->Parameters.Create.SecurityContext->DesiredAccess & DELETE) ||
@@ -930,7 +955,7 @@ ExnCommonCreate (
                         Status = STATUS_OBJECT_PATH_NOT_FOUND;
                         __leave;
                     }
-                    Status = ExnSpliceLink(Vcb, Entry.Inode, &Remaining, &LinkPath, &Absolute);
+                    Status = ExnSpliceLink(Vcb, W->Entry.Inode, &Remaining, &LinkPath, &Absolute);
                     if (!NT_SUCCESS(Status)) {
                         __leave;
                     }
@@ -942,19 +967,19 @@ ExnCommonCreate (
                 }
             }
 
-            Child = ExnFindFcbByIno(Vcb, Entry.Inode, AsLink);
+            Child = ExnFindFcbByIno(Vcb, W->Entry.Inode, AsLink);
 
             if (Child == NULL) {
-                Status = ExnCreateFcb(Vcb, Current, &Entry, AsLink, &Child);
+                Status = ExnCreateFcb(Vcb, Current, &W->Entry, AsLink, &Child);
                 if (!NT_SUCCESS(Status)) {
                     __leave;
                 }
             }
 
             if (LastComponent) {
-                OpenName.ParentIno = Current->Ino;
-                OpenName.Length = Entry.NameLength;
-                RtlCopyMemory(OpenName.Name, Entry.Name, Entry.NameLength);
+                W->OpenName.ParentIno = Current->Ino;
+                W->OpenName.Length = W->Entry.NameLength;
+                RtlCopyMemory(W->OpenName.Name, W->Entry.Name, W->Entry.NameLength);
             }
             Parent = Current;
             Current = Child;
@@ -1043,7 +1068,7 @@ ExnCommonCreate (
         }
 
         Status = ExnOpenFcb(Ctx, Vcb, Current, ShareCheckAccess, ShareAccess, CreateOptions,
-                            OpenName.Length ? &OpenName : NULL);
+                            W->OpenName.Length ? &W->OpenName : NULL);
         if (!NT_SUCCESS(Status)) {
             __leave;
         }

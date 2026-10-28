@@ -260,7 +260,10 @@ ExnScanDisk (
         if (IsRecognizedPartition(P->PartitionType)) {
             continue;
         }
-        if (!ExnPartitionIsExt(Device, P->StartingOffset.QuadPart, Buffer)) {
+        /* an ext volume on any type; a Linux partition (83h) even before it
+           is formatted, so extfmt can reach it by its letter */
+        if (P->PartitionType != 0x83 &&
+            !ExnPartitionIsExt(Device, P->StartingOffset.QuadPart, Buffer)) {
             continue;
         }
 

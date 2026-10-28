@@ -484,11 +484,15 @@ ExnListFromEntry (
     ExnListFromInode(Vcb, &Inode, List);
     List->Attributes = ExnComputeAttributes(Vcb, &Inode, (const UCHAR *)Entry->Name, Entry->NameLength, Dos);
     if (WantEaSize && (Inode.FileAclLo != 0 || Vcb->Vol.InodeSize > EXT_GOOD_OLD_INODE_SIZE)) {
-        EXN_FCB Temp;
-        RtlZeroMemory(&Temp, FIELD_OFFSET(EXN_FCB, Name));
-        Temp.Ino = Ino;
-        Temp.Inode = Inode;
-        List->EaSize = ExnNtEaSize(Vcb, &Temp);
+        /* (a whole FCB: from pool, NT 3.x has 12K kernel stacks) */
+        PEXN_FCB Temp = (PEXN_FCB)ExAllocatePoolWithTag(NonPagedPool, sizeof(EXN_FCB), EXN_TAG_FCB);
+        if (Temp != NULL) {
+            RtlZeroMemory(Temp, FIELD_OFFSET(EXN_FCB, Name));
+            Temp->Ino = Ino;
+            Temp->Inode = Inode;
+            List->EaSize = ExnNtEaSize(Vcb, Temp);
+            ExFreePool(Temp);
+        }
     }
 }
 

@@ -318,7 +318,12 @@ ExnFlushVolume (
         }
     }
 
-    (VOID)ExnFlushDevice(Vcb);
+    /* Skipped during shutdown: the disk cache-flush waits on a disk stack that
+     * may already be going down (the "Shutdown in progress" hang, disk light on).
+     * Writes are write-through; the disk flushes its own cache at shutdown. */
+    if (!ExnData.ShuttingDown) {
+        (VOID)ExnFlushDevice(Vcb);
+    }
 
     return Status;
 }
@@ -389,6 +394,7 @@ ExnCommonShutdown (
     UNREFERENCED_PARAMETER(Ctx);
 
     EXN_DBG((EXN_PFX "shutdown\n"));
+    ExnData.ShuttingDown = TRUE;   /* skip disk cache-flush: hangs at shutdown */
     (VOID)ExAcquireResourceSharedLite(&ExnData.Resource, TRUE);
 
     __try {

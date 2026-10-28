@@ -712,7 +712,14 @@ ExnDismountVolume (
 
     __try {
 
-        if (!(Vcb->VcbState & VCB_STATE_DISMOUNTED)) {
+        /*
+         * Written out first - unless the program that locked the volume
+         * dismounts it: the lock wrote everything, and since then the program
+         * may have put a new file system there (a format), which nothing
+         * cached from before may be written over.
+         */
+        if (!(Vcb->VcbState & VCB_STATE_DISMOUNTED) &&
+            !((Vcb->VcbState & VCB_STATE_LOCKED) && Vcb->LockFileObject == FileObject)) {
             (VOID)ExnFlushVolume(Vcb, TRUE);
         }
 

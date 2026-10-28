@@ -1,5 +1,14 @@
 EXTNT - Changelog
 
+v1.1.0.0
+Changelog:
+- Fixed Windows NT 3.1 hanging at "Shutdown in progress" with the disk light stuck on: the shutdown-time flush of the disk's hardware cache waited without a timeout and never returned on NT 3.1. ext volumes are written through and already consistent, so that flush is now skipped at shutdown.
+- Large non-cached reads and writes are split into pieces the disk stack accepts (1 MB each) rather than handed to the disk in one oversized IRP, which could bugcheck on a large volume.
+- Fixed byte-range locks being left behind when a file was closed: the next lock on the file waited forever, so on NT 3.5 and later WritePrivateProfileString (and Explorer writing desktop.ini) hung on ext volumes.
+- Less kernel stack: the temporary FCB of directory listings, the buffers of a create and the boot sector buffer of the boot view now come from pool (NT 3.x kernel stacks are 12 KB; the deepest path went from about 5 KB to 4.4 KB).
+- Linux partitions (type 83h) now get a drive letter on Windows NT 3.1 - 4.0 even before they are formatted, so extfmt can format them by their letter (extfmt E: could not find an empty 83h partition).
+- A volume dismounted by the program that locked it (a format or a repair) no longer writes anything out first: the lock already did, and the disk may hold a new file system by then.
+
 v1.0.0.0
 Changelog:
 - Initial Release.

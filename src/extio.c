@@ -700,6 +700,9 @@ ExnNonCachedIo (
         if (Length > Contiguous) {
             Length = Contiguous;
         }
+        if (Length > EXN_MAX_TRANSFER) {
+            Length = EXN_MAX_TRANSFER;   /* never hand the disk stack an oversized IRP */
+        }
 
         if (Lbo == -1) {
             /* a hole reads as zeros */

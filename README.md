@@ -16,7 +16,7 @@ per architecture, built with GCC; no Visual C++ or DDK is needed.
 
 | | |
 |---|---|
-| **Version** | 1.0 |
+| **Version** | 1.1 |
 | **File systems** | ext (1992), ext2 (revisions 0 and 1), ext3, ext4 |
 | **Windows** | NT 3.1, 3.5, 3.51, 4.0, 2000, XP (x86); XP x64 / Server 2003 x64 (amd64) |
 | **Access** | read/write |

@@ -188,7 +188,8 @@ typedef IO_STACK_LOCATION EXTENDED_IO_STACK_LOCATION, *PEXTENDED_IO_STACK_LOCATI
 extern PIRP ExnXTopLevelIrp;
 #define IoGetTopLevelIrp()          (ExnXTopLevelIrp)
 #define IoSetTopLevelIrp(I)         (ExnXTopLevelIrp = (PIRP)(I))
-#define IoGetRequestorProcess(Irp)  ((PEPROCESS)0)
+/* (cleanup runs in the process closing the handle: its locks go) */
+#define IoGetRequestorProcess(Irp)  IoGetCurrentProcess()
 #define IoGetDeviceToVerify(T)      ((PDEVICE_OBJECT)0)
 #define IoSetDeviceToVerify(T, D)   ((void)0)
 #endif
@@ -407,6 +408,7 @@ NTSTATUS ExnExceptionStatus(NTSTATUS Code);
 
 #define EXN_PAGE_SIZE           0x1000
 #define EXN_ZERO_CHUNK          0x10000
+#define EXN_MAX_TRANSFER        0x100000    /* cap one disk IRP; miniport can't take a multi-hundred-MB transfer */
 #define EXN_MAX_LABEL           16          /* s_volume_name: 16 bytes */
 #define EXN_MAX_NAME            EXT_MAX_NAME   /* bytes of UTF-8 */
 #define EXN_SECTOR_SIZE         512
@@ -634,6 +636,7 @@ typedef struct _EXN_DATA {
     BOOLEAN         Writable;       /* registry: allow writing at all */
     ULONG           DefaultUid, DefaultGid;
     ULONG           FileMode, DirMode;  /* permission bits of new files / dirs */
+    BOOLEAN         ShuttingDown;   /* IRP_MJ_SHUTDOWN: skip the disk cache-flush */
 } EXN_DATA, *PEXN_DATA;
 
 extern EXN_DATA ExnData;
